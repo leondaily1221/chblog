@@ -7,39 +7,67 @@ import { CurrentStatus } from './components/CurrentStatus';
 import { Shortcuts } from './components/Shortcuts';
 import { GoogleGenAI } from "@google/genai";
 
+// API 키 로컬 관리 유틸리티
+const STORAGE_KEY = 'user_custom_gemini_api_key';
+const getStoredKey = () => {
+  const encrypted = localStorage.getItem(STORAGE_KEY);
+  if (!encrypted) return null;
+  try {
+    return atob(encrypted);
+  } catch (e) {
+    return null;
+  }
+};
+const setStoredKey = (key: string) => localStorage.setItem(STORAGE_KEY, btoa(key));
+const clearStoredKey = () => localStorage.removeItem(STORAGE_KEY);
+
 const ApiKeyModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [hasKey, setHasKey] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-
-  const checkStatus = async () => {
-    if (window.aistudio) {
-      const active = await window.aistudio.hasSelectedApiKey();
-      setHasKey(active);
-    }
-  };
+  const [inputKey, setInputKey] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
-      checkStatus();
+      const saved = getStoredKey();
+      if (saved) setInputKey(saved);
       setStatus('idle');
       setErrorMessage('');
     }
   }, [isOpen]);
 
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Assume success after trigger to mitigate race condition
-      setHasKey(true);
+  const handleSaveAndApply = async () => {
+    if (!inputKey.trim()) {
+      setErrorMessage('API 키를 입력해주세요.');
+      setStatus('error');
+      return;
     }
+    setStoredKey(inputKey.trim());
+    setStatus('success');
+    setTimeout(() => {
+        onClose();
+        window.location.reload(); // 키 적용을 위해 새로고침 권장
+    }, 1000);
+  };
+
+  const handleResetKey = () => {
+    clearStoredKey();
+    setInputKey('');
+    setStatus('idle');
+    setErrorMessage('API 키가 초기화되었습니다. 시스템 기본키 또는 새 키를 입력하세요.');
   };
 
   const handleTestConnection = async () => {
+    const keyToTest = inputKey.trim() || process.env.API_KEY;
+    if (!keyToTest) {
+      setErrorMessage('테스트할 API 키가 없습니다.');
+      setStatus('error');
+      return;
+    }
+
     setStatus('testing');
     setErrorMessage('');
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: keyToTest });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: 'Connection test. Respond with "OK".',
@@ -47,17 +75,11 @@ const ApiKeyModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
       if (response.text) {
         setStatus('success');
       } else {
-        throw new Error('응답을 받지 못했습니다.');
+        throw new Error('응답 형식이 올바르지 않습니다.');
       }
     } catch (err: any) {
       setStatus('error');
-      const msg = err.message || '';
-      if (msg.includes('Requested entity was not found')) {
-        setErrorMessage('사용 가능한 API 키를 찾을 수 없습니다. 다시 선택해주세요.');
-        setHasKey(false);
-      } else {
-        setErrorMessage(msg || '연결에 실패했습니다. 결제 정보 및 프로젝트 상태를 확인하세요.');
-      }
+      setErrorMessage(err.message || '연결에 실패했습니다. 키 유효성 및 네트워크를 확인하세요.');
     }
   };
 
@@ -79,52 +101,54 @@ const ApiKeyModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
         </div>
 
         <div className="space-y-5">
-          <div className="bg-gray-900/60 p-4 rounded-xl border border-gray-700">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium text-gray-400">보안 스토리지 상태</span>
-              <div className="flex items-center">
-                <div className={`h-2 w-2 rounded-full mr-2 ${hasKey ? 'bg-green-500' : 'bg-red-500'} animate-pulse`}></div>
-                <span className={`text-xs font-bold ${hasKey ? 'text-green-400' : 'text-red-400'}`}>
-                  {hasKey ? '정상 로드됨' : '키 선택 필요'}
-                </span>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              입력된 키는 브라우저의 보안 영역에 암호화되어 저장됩니다. 최감독의 올인원 블로깅은 개인정보 보호를 위해 직접 키를 수집하지 않으며, 구글 통합 인증 시스템을 통해서만 접근합니다.
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">Gemini API Key 직접 입력</label>
+            <input
+              type="password"
+              value={inputKey}
+              onChange={(e) => setInputKey(e.target.value)}
+              placeholder="API 키를 입력하세요"
+              className="w-full bg-gray-900 border border-gray-600 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+            />
+            <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+              * 입력된 키는 브라우저 로컬 저장소에 암호화되어 저장되며, 서버로 전송되지 않습니다.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={handleSelectKey}
-              className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all active:scale-[0.98]"
+              onClick={handleSaveAndApply}
+              className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-[0.98]"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-              <span>API 키 선택 및 리셋</span>
+              <span>저장 및 적용</span>
             </button>
-            
             <button
-              onClick={handleTestConnection}
-              disabled={!hasKey || status === 'testing'}
-              className="flex items-center justify-center space-x-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-xl transition-all"
+              onClick={handleResetKey}
+              className="flex items-center justify-center space-x-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 rounded-xl transition-all"
             >
-              {status === 'testing' ? (
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              )}
-              <span>연결 테스트 실행</span>
+              <span>초기화(리셋)</span>
             </button>
           </div>
+          
+          <button
+            onClick={handleTestConnection}
+            disabled={status === 'testing'}
+            className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all"
+          >
+            {status === 'testing' ? (
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            )}
+            <span>연결 테스트 실행</span>
+          </button>
 
           {status === 'success' && (
             <div className="bg-green-500/10 border border-green-500/30 text-green-400 p-3.5 rounded-xl text-sm flex items-center animate-in fade-in zoom-in duration-300">
-              <div className="bg-green-500 rounded-full p-1 mr-3">
-                <svg className="w-3 h-3 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-              </div>
+              <svg className="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               <div>
                 <p className="font-bold">연결 성공!</p>
-                <p className="text-xs opacity-80">모든 기능을 즉시 사용할 수 있습니다.</p>
+                <p className="text-xs opacity-80">API 키가 정상적으로 작동합니다.</p>
               </div>
             </div>
           )}
@@ -133,7 +157,7 @@ const ApiKeyModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpe
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3.5 rounded-xl text-sm animate-in fade-in zoom-in duration-300">
               <div className="flex items-center mb-1">
                 <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span className="font-bold">연결 실패</span>
+                <span className="font-bold">오류 발생</span>
               </div>
               <p className="text-xs opacity-90 break-words ml-7">{errorMessage}</p>
             </div>
@@ -1002,7 +1026,7 @@ function App() {
     } catch (err: any) {
       const msg = err.message || '';
       if (msg.includes('Requested entity was not found')) {
-        setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 선택해주세요.');
+        setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 설정해주세요.');
         setIsApiKeyModalOpen(true);
       } else {
         setError(msg || '알 수 없는 오류가 발생했습니다.');
@@ -1030,7 +1054,7 @@ function App() {
     } catch (err: any) {
         const msg = err.message || '';
         if (msg.includes('Requested entity was not found')) {
-          setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 선택해주세요.');
+          setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 설정해주세요.');
           setIsApiKeyModalOpen(true);
         } else {
           setError(msg || '이미지 생성 중 알 수 없는 오류가 발생했습니다.');
@@ -1061,7 +1085,7 @@ function App() {
     } catch (err: any) {
         const msg = err.message || '';
         if (msg.includes('Requested entity was not found')) {
-          setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 선택해주세요.');
+          setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 설정해주세요.');
           setIsApiKeyModalOpen(true);
         } else {
           setError(msg || '서브 이미지 생성 중 알 수 없는 오류가 발생했습니다.');
@@ -1095,7 +1119,7 @@ function App() {
     } catch (err: any) {
       const msg = err.message || '';
       if (msg.includes('Requested entity was not found')) {
-        setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 선택해주세요.');
+        setError('유효한 API 키가 설정되지 않았습니다. 상단 열쇠 아이콘을 클릭하여 키를 설정해주세요.');
         setIsApiKeyModalOpen(true);
       } else {
         setError(msg || '기사 재작성 중 알 수 없는 오류가 발생했습니다.');
