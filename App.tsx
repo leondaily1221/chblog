@@ -700,12 +700,12 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-slate-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
         <div className="p-6 border-b border-slate-700 sticky top-0 bg-slate-800 z-10 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-white">GPT PARK 올인원 블로깅 매뉴얼</h2>
+          <h2 className="text-2xl font-bold text-white">최감독 올인원 블로깅 매뉴얼</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-3xl font-light">&times;</button>
         </div>
         <div className="p-6 space-y-8">
           <ManualSection title="[시작하며] 이 앱은 무엇인가요?">
-            <p>GPT PARK의 올인원 블로깅은 아이디어 발굴부터 SEO(검색엔진최적화) 분석, 고품질의 기사 작성, 소셜 미디어 홍보까지 블로그 운영의 전 과정을 돕는 강력한 AI 어시스턴트입니다.</p>
+            <p>최감독의 올인원 블로깅은 아이디어 발굴부터 SEO(검색엔진최적화) 분석, 고품질의 기사 작성, 소셜 미디어 홍보까지 블로그 운영의 전 과정을 돕는 강력한 AI 어시스턴트입니다.</p>
             <p>복잡한 과정을 2개의 핵심 탭 <span className="text-yellow-300 font-semibold">'주제 아이디어 얻기', '트렌드 바로가기'</span>으로 단순화하여 누구나 쉽게 전문적인 블로그 콘텐츠를 만들 수 있도록 지원합니다.</p>
           </ManualSection>
 
@@ -1303,7 +1303,7 @@ function App() {
         className="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700 transition-all duration-200 disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center"
       >
         {disabled ? (
-          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
         ) : text}
       </button>
   );
